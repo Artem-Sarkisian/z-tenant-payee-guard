@@ -1,0 +1,63 @@
+/// z-tenant-payee-guard — payee-substitution defence for accounts payable.
+///
+/// Business-email-compromise works by sending a real-looking invoice from a
+/// known vendor with the beneficiary account swapped for the attacker's. The
+/// finance team has no cheap way to answer one question at payment time:
+/// "have we ever paid this vendor at THIS account before?"
+///
+/// This contract answers exactly that question and nothing else.
+///
+/// Design constraints that make it a TEE contract rather than a service:
+///   - The enrolled payee register never leaves the enclave. The caller
+///     supplies a candidate and receives a verdict; it can never read or
+///     enumerate the register, so a compromised agent cannot exfiltrate the
+///     vendor payment book.
+///   - Account identifiers are stored as salted SHA-256 fingerprints, not
+///     plaintext. A future contract bug or an over-broad grant still cannot
+///     surface an IBAN.
+///   - The salt lives in `z:<tid>:secrets` and is written by the tenant SDK,
+///     so it is never compiled into the artifact.
+///
+/// Host capabilities: kv_store, logging, tenant_context, clock.
+/// No `http` import: this contract makes no outbound calls at all, which is
+/// what lets a tenant grant it without also granting network egress.
+package z:tenant-payee-guard@0.1.0;
+
+world tenant-payee-guard {
+    import host:tenant/tenant-context@1.0.0;
+    import host:interfaces/logging@2.1.0;
+    import host:interfaces/kv-store@2.1.0;
+    import host:interfaces/clock@2.1.0;
+
+    export contracts;
+}
+
+interface contracts {
+    /// Standard 3-field envelope used by all node-callable contracts.
+    record generic-input {
+        input:        option<list<u8>>,
+        user-profile: option<list<u8>>,
+        context:      option<list<u8>>,
+    }
+
+    /// Register or rotate the known-good payee for a vendor.
+    /// Input  (JSON): { vendor-ref, account-id, beneficiary-name, actor }
+    /// Output (JSON): { vendor_ref, action, change_count, enrolled_at_ms }
+    /// `action` is "enrolled" on first registration and "rotated" when the
+    /// vendor already had a different account on file. Rotation is recorded,
+    /// never silent — a rotation is exactly what an attacker wants to cause.
+    enroll-payee: func(req: generic-input) -> result<list<u8>, string>;
+
+    /// Check a payment instruction against the register.
+    /// Input  (JSON): { vendor-ref, account-id, beneficiary-name }
+    /// Output (JSON): { verdict, risk, reasons[], requires_out_of_band_check,
+    ///                  vendor_known, change_count, days_since_last_change }
+    /// Never returns the enrolled account identifier in any form.
+    verify-payee: func(req: generic-input) -> result<list<u8>, string>;
+
+    /// Non-sensitive register status for one vendor, for dashboards.
+    /// Input  (JSON): { vendor-ref }
+    /// Output (JSON): { vendor_ref, enrolled, change_count,
+    ///                  days_since_last_change, beneficiary_name_on_file }
+    vendor-status: func(req: generic-input) -> result<list<u8>, string>;
+}

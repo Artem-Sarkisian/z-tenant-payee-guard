@@ -1,0 +1,60 @@
+
+--- 1. enrol genuine payee
+{
+  "vendor_ref": "acme gmbh",
+  "action": "unchanged",
+  "change_count": 0,
+  "enrolled_at_ms": 1787847392265,
+  "last_changed_ms": 1787847392265
+}
+
+--- 2. legitimate invoice, same account reformatted
+{
+  "verdict": "match",
+  "risk": "low",
+  "reasons": [
+    "The enrolled account for this vendor was changed 0 day(s) ago."
+  ],
+  "requires_out_of_band_check": false,
+  "vendor_known": true,
+  "change_count": 0,
+  "days_since_last_change": 0
+}
+
+--- 3. BEC attempt: real vendor, attacker account
+{
+  "verdict": "mismatch",
+  "risk": "high",
+  "reasons": [
+    "This vendor is enrolled, but the account on this instruction is not the one on file.",
+    "Payee substitution on a genuine invoice is the most common form of invoice fraud.",
+    "The enrolled account has never been changed since enrolment, so a new account is unexpected."
+  ],
+  "requires_out_of_band_check": true,
+  "vendor_known": true,
+  "change_count": 0,
+  "days_since_last_change": 0
+}
+
+--- 4. never-seen vendor
+{
+  "verdict": "unknown_vendor",
+  "risk": "elevated",
+  "reasons": [
+    "No payee has ever been enrolled for this vendor.",
+    "A first payment cannot be checked against history."
+  ],
+  "requires_out_of_band_check": true,
+  "vendor_known": false,
+  "change_count": 0,
+  "days_since_last_change": null
+}
+
+--- 5. dashboard status (no account data)
+{
+  "vendor_ref": "acme gmbh",
+  "enrolled": true,
+  "change_count": 0,
+  "days_since_last_change": 0,
+  "beneficiary_name_on_file": "ACME GmbH"
+}
